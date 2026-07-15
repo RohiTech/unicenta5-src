@@ -36,6 +36,7 @@ import com.unicenta.data.gui.MessageInf;
 import com.unicenta.data.loader.BatchSentence;
 import com.unicenta.data.loader.BatchSentenceResource;
 import com.unicenta.data.loader.Session;
+import com.unicenta.data.pool.HikariConnectionPool;
 import com.unicenta.format.Formats;
 import com.unicenta.pos.printer.DeviceTicket;
 import com.unicenta.pos.printer.TicketParser;
@@ -335,6 +336,9 @@ public class JRootApp extends JPanel implements AppView, DeviceMonitorEventListe
 
     try {
       session = AppViewConnection.createSession(m_props);
+      
+      // Solo para pruebas
+      HikariConnectionPool.printStats();
 
     } catch (BasicException e) {
       JMessageDialog.showMessage(this, new MessageInf(MessageInf.SGN_DANGER, e.getMessage(), e));

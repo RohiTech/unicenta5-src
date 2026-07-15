@@ -21,6 +21,7 @@ package com.unicenta.pos.forms;
 
 import com.unicenta.basic.BasicException;
 import com.unicenta.data.loader.Session;
+import com.unicenta.data.pool.HikariConnectionPool;
 import com.unicenta.pos.util.AltEncrypter;
 import java.io.File;
 import java.net.MalformedURLException;
@@ -124,6 +125,40 @@ public class AppViewConnection {
                 props.getProperty("db.schema") +
                 props.getProperty("db.options");                
             }
+            
+            String sDBDriver = props.getProperty("db.driver");
+            
+            boolean poolEnabled = Boolean.parseBoolean(
+                    getProperty(props, "db.pool.enabled", "true"));
+
+            int maximumPoolSize = Integer.parseInt(
+                    getProperty(props, "db.pool.maximumPoolSize", "20"));
+
+            int minimumIdle = Integer.parseInt(
+                    getProperty(props, "db.pool.minimumIdle", "5"));
+
+            long connectionTimeout = Long.parseLong(
+                    getProperty(props, "db.pool.connectionTimeout", "30000"));
+
+            long idleTimeout = Long.parseLong(
+                    getProperty(props, "db.pool.idleTimeout", "300000"));
+
+            long maxLifetime = Long.parseLong(
+                    getProperty(props, "db.pool.maxLifetime", "1800000"));
+            
+            HikariConnectionPool.init(
+                sDBDriver,
+                dbURL,
+                sDBUser,
+                sDBPassword,
+                poolEnabled,
+                maximumPoolSize,
+                minimumIdle,
+                connectionTimeout,
+                idleTimeout,
+                maxLifetime
+            );
+            
             return new Session(dbURL, sDBUser,sDBPassword);
                 
         } catch (InstantiationException | IllegalAccessException | MalformedURLException | ClassNotFoundException e) {
@@ -131,6 +166,11 @@ public class AppViewConnection {
         } catch (SQLException eSQL) {
             throw new BasicException(AppLocal.getIntString("message.databaseconnectionerror"), eSQL);
         }
+    }
+    
+    private static String getProperty(AppProperties props, String key, String defaultValue) {
+        String value = props.getProperty(key);
+        return value == null ? defaultValue : value;
     }
 
     private static boolean isJavaWebStart() {

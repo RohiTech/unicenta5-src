@@ -19,6 +19,7 @@
 
 package com.unicenta.data.loader;
 
+import com.unicenta.data.pool.HikariConnectionPool;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
@@ -71,9 +72,31 @@ public final class Session {
         close();
 
         // creamos una nueva conexion.
-        m_c = (m_sappuser == null && m_spassword == null)
+        /*m_c = (m_sappuser == null && m_spassword == null)
         ? DriverManager.getConnection(m_surl)
-        : DriverManager.getConnection(m_surl, m_sappuser, m_spassword);
+        : DriverManager.getConnection(m_surl, m_sappuser, m_spassword);*/
+        
+        
+            try {
+
+            System.out.println("Obteniendo conexión desde HikariCP...");
+
+            Connection c = HikariConnectionPool.getConnection();
+
+            System.out.println("Connection = " + c);
+
+            m_c = c;
+
+        } catch (Exception ex) {
+
+            System.err.println("HikariCP no disponible. Usando DriverManager.");
+            ex.printStackTrace();
+
+            m_c = (m_sappuser == null && m_spassword == null)
+                    ? DriverManager.getConnection(m_surl)
+                    : DriverManager.getConnection(m_surl, m_sappuser, m_spassword);
+        }
+        
         m_c.setAutoCommit(true);
         m_bInTransaction = false;
     }     

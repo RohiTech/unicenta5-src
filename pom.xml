@@ -12,6 +12,11 @@
     <maven.compiler.target>11</maven.compiler.target>
   </properties>
   <dependencies>
+    <dependency>
+        <groupId>com.zaxxer</groupId>
+        <artifactId>HikariCP</artifactId>
+        <version>6.3.0</version>
+    </dependency>
     <!-- sqlite-jdbc -->
     <dependency>
       <groupId>org.xerial</groupId>
