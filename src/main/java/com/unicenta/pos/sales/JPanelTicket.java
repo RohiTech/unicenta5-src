@@ -706,6 +706,176 @@ public abstract class JPanelTicket extends JPanel implements JPanelView, BeanFac
       executeEventAndRefresh("ticket.change");
     }
   }
+  
+  private boolean hasStock(ProductInfoExt product, double quantity)
+  {
+    // Productos especiales que no deben validar existencia
+    if (product == null
+            || product.isVprice()
+            || product.getID().equals("xxx998_998xxx_x8x8x8")
+            || product.getID().equals("xxx999_999xxx_x9x9x9")) {
+        return true;
+    }
+
+    try {
+        String location = m_App.getInventoryLocation();
+
+        ProductStock stock = dlSales.getProductStockState(
+                product.getID(),
+                location
+        );
+
+        if (stock == null) {
+            return true;
+        }
+
+        double available = stock.getUnits() == null
+                ? 0.0
+                : stock.getUnits();
+
+        if (available <= 0) {
+            Toolkit.getDefaultToolkit().beep();
+
+            JOptionPane.showMessageDialog(
+                    this,
+                    "El producto \"" + product.getName()
+                            + "\" no tiene existencia disponible.\n"
+                            + "Existencia actual: " + available,
+                    "Producto sin existencia",
+                    JOptionPane.WARNING_MESSAGE
+            );
+
+            return false;
+        }
+
+        if (quantity > available) {
+            Toolkit.getDefaultToolkit().beep();
+
+            JOptionPane.showMessageDialog(
+                    this,
+                    "No hay suficiente existencia para el producto:\n"
+                            + product.getName()
+                            + "\n\nExistencia disponible: " + available
+                            + "\nCantidad solicitada: " + quantity,
+                    "Existencia insuficiente",
+                    JOptionPane.WARNING_MESSAGE
+            );
+
+            return false;
+        }
+
+    } catch (BasicException ex) {
+        System.err.println("Error verificando existencia del producto: " + ex.getMessage());
+
+        JOptionPane.showMessageDialog(
+                this,
+                "No fue posible verificar la existencia del producto.",
+                "Error",
+                JOptionPane.ERROR_MESSAGE
+        );
+
+        return false;
+    }
+
+    return true;
+}
+  
+  private boolean hasStock(String productId, double quantity, int currentLineIndex) {
+
+    if (productId == null
+            || productId.equals("xxx999_999xxx_x9x9x9")
+            || productId.equals("xxx998_998xxx_x8x8x8")) {
+        return true;
+    }
+
+    try {
+
+        String location = m_App.getInventoryLocation();
+
+        ProductStock stock = dlSales.getProductStockState(
+                productId,
+                location
+        );
+
+        if (stock == null) {
+            return true;
+        }
+
+        double available = stock.getUnits() == null
+                ? 0.0
+                : stock.getUnits();
+
+        if (available <= 0) {
+
+            Toolkit.getDefaultToolkit().beep();
+
+            JOptionPane.showMessageDialog(
+                    this,
+                    "El producto no tiene existencia disponible.\n\n"
+                            + "Existencia actual: " + available,
+                    "Producto sin existencia",
+                    JOptionPane.WARNING_MESSAGE
+            );
+
+            return false;
+        }
+
+        /*
+         * Verificamos si el mismo producto aparece
+         * en otra línea del ticket.
+         */
+        double quantityInOtherLines = 0.0;
+
+        for (int i = 0; i < m_oTicket.getLinesCount(); i++) {
+
+            if (i == currentLineIndex) {
+                continue;
+            }
+
+            TicketLineInfo line = m_oTicket.getLine(i);
+
+            if (productId.equals(line.getProductID())) {
+                quantityInOtherLines += line.getMultiply();
+            }
+        }
+
+        double totalRequested = quantityInOtherLines + quantity;
+
+        if (totalRequested > available) {
+
+            Toolkit.getDefaultToolkit().beep();
+
+            JOptionPane.showMessageDialog(
+                    this,
+                    "No hay suficiente existencia.\n\n"
+                            + "Existencia disponible: " + available
+                            + "\nCantidad solicitada: " + totalRequested,
+                    "Existencia insuficiente",
+                    JOptionPane.WARNING_MESSAGE
+            );
+
+            return false;
+        }
+
+    } catch (BasicException ex) {
+
+        System.err.println(
+                "Error verificando existencia: "
+                        + ex.getMessage()
+        );
+
+        JOptionPane.showMessageDialog(
+                this,
+                "No fue posible verificar la existencia del producto.",
+                "Error",
+                JOptionPane.ERROR_MESSAGE
+        );
+
+        return false;
+    }
+
+    return true;
+}
 
   private void addTicketLine(ProductInfoExt oProduct, double dMul, double dPrice) {
 
@@ -760,6 +930,7 @@ public abstract class JPanelTicket extends JPanel implements JPanelView, BeanFac
    * @param oLine
    */
   protected void addTicketLine(TicketLineInfo oLine) {
+    
     if (executeEventAndRefresh("ticket.addline", new ScriptArg("line", oLine)) == null) {
       if (oLine.isProductCom()) {
         int i = m_ticketlines.getSelectedIndex();
@@ -1008,12 +1179,28 @@ public abstract class JPanelTicket extends JPanel implements JPanelView, BeanFac
     }
   }
 
-  private void incProduct(double dPor, ProductInfoExt prod) {
+  /*private void incProduct(double dPor, ProductInfoExt prod) {
 
     if (prod.isVprice()) {
       addTicketLine(prod, getPorValue(), getInputValue());
     } else {
       addTicketLine(prod, dPor, prod.getPriceSell());
+    }
+  }*/
+  
+  private void incProduct(double dPor, ProductInfoExt prod) {
+
+    if (!prod.isVprice()) {
+
+        if (!hasStock(prod, dPor)) {
+            stateToZero();
+            return;
+        }
+
+        addTicketLine(prod, dPor, prod.getPriceSell());
+
+    } else {
+        addTicketLine(prod, getPorValue(), getInputValue());
     }
   }
 
@@ -1558,6 +1745,13 @@ public abstract class JPanelTicket extends JPanel implements JPanelView, BeanFac
           TicketLineInfo newline = new TicketLineInfo(m_oTicket.getLine(i));
           //If it's a refund + button means one unit less
           if (m_oTicket.getTicketType() == TicketInfo.RECEIPT_REFUND) {
+            double newQuantity = newline.getMultiply() + 1.0;
+
+            if (!hasStock(newline.getProductID(), newQuantity, i)) {
+                stateToZero();
+                return;
+            }
+
             if (m_App.getProperties().getProperty("override.check").equals("true")) {
               oCount = count - 1;  //increment existing line
               pinOK = false;
@@ -1795,6 +1989,122 @@ public abstract class JPanelTicket extends JPanel implements JPanelView, BeanFac
     }
     return null;
   }
+  
+  private boolean validateTicketStock(TicketInfo ticket) {
+
+    // Las devoluciones no deben bloquearse por falta de existencia.
+    if (ticket.getTicketType() == TicketInfo.RECEIPT_REFUND) {
+        return true;
+    }
+
+    try {
+
+        String location = m_App.getInventoryLocation();
+
+        /*
+         * Acumulamos las cantidades por producto.
+         * Esto evita que un mismo producto aparezca
+         * en varias líneas y se valide incorrectamente.
+         */
+        Map<String, Double> quantities = new HashMap<>();
+
+        for (int i = 0; i < ticket.getLinesCount(); i++) {
+
+            TicketLineInfo line = ticket.getLine(i);
+
+            String productId = line.getProductID();
+
+            if (productId == null
+                    || productId.equals("xxx999_999xxx_x9x9x9")
+                    || productId.equals("xxx998_998xxx_x8x8x8")) {
+                continue;
+            }
+
+            double quantity = line.getMultiply();
+
+            quantities.merge(
+                    productId,
+                    quantity,
+                    Double::sum
+            );
+        }
+
+        /*
+         * Ahora verificamos cada producto contra
+         * la existencia REAL de la base de datos.
+         */
+        for (Map.Entry<String, Double> entry : quantities.entrySet()) {
+
+            String productId = entry.getKey();
+            double requested = entry.getValue();
+
+            ProductStock stock = dlSales.getProductStockState(
+                    productId,
+                    location
+            );
+
+            // Sin registro de stock: mantener comportamiento actual
+            if (stock == null) {
+                continue;
+            }
+
+            double available = stock.getUnits() == null
+                    ? 0.0
+                    : stock.getUnits();
+
+            if (available <= 0) {
+
+                Toolkit.getDefaultToolkit().beep();
+
+                JOptionPane.showMessageDialog(
+                        this,
+                        "No se puede completar la factura.\n\n"
+                                + "Un producto ya no tiene existencia disponible.\n"
+                                + "Existencia actual: " + available,
+                        "Producto sin existencia",
+                        JOptionPane.WARNING_MESSAGE
+                );
+
+                return false;
+            }
+
+            if (requested > available) {
+
+                Toolkit.getDefaultToolkit().beep();
+
+                JOptionPane.showMessageDialog(
+                        this,
+                        "No se puede completar la factura.\n\n"
+                                + "Existencia disponible: " + available
+                                + "\nCantidad solicitada: " + requested,
+                        "Existencia insuficiente",
+                        JOptionPane.WARNING_MESSAGE
+                );
+
+                return false;
+            }
+        }
+
+    } catch (BasicException ex) {
+
+        System.err.println(
+                "Error validando existencia antes de facturar: "
+                        + ex.getMessage()
+        );
+
+        JOptionPane.showMessageDialog(
+                this,
+                "No fue posible verificar la existencia de los productos.\n"
+                        + "La factura no puede continuar.",
+                "Error verificando existencia",
+                JOptionPane.ERROR_MESSAGE
+        );
+
+        return false;
+    }
+
+    return true;
+}
 
   private boolean closeTicket(TicketInfo ticket, Object ticketext) {
     if (listener != null) {
@@ -1803,6 +2113,11 @@ public abstract class JPanelTicket extends JPanel implements JPanelView, BeanFac
     boolean resultok = false;
 
     if (m_App.getAppUserView().getUser().hasPermission("sales.Total")) {
+        
+      // Validar existencia real antes de permitir el pago
+      if (!validateTicketStock(ticket)) {
+          return false;
+      }
 
       warrantyCheck(ticket);
 
