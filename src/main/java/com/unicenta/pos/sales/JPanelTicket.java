@@ -707,7 +707,7 @@ public abstract class JPanelTicket extends JPanel implements JPanelView, BeanFac
     }
   }
   
-  private boolean hasStock(ProductInfoExt product, double quantity)
+  /*private boolean hasStock(ProductInfoExt product, double quantity)
   {
     // Productos especiales que no deben validar existencia
     if (product == null
@@ -820,10 +820,10 @@ public abstract class JPanelTicket extends JPanel implements JPanelView, BeanFac
             return false;
         }
 
-        /*
-         * Verificamos si el mismo producto aparece
-         * en otra línea del ticket.
-         */
+        
+         // Verificamos si el mismo producto aparece
+         // en otra línea del ticket.
+         
         double quantityInOtherLines = 0.0;
 
         for (int i = 0; i < m_oTicket.getLinesCount(); i++) {
@@ -875,11 +875,128 @@ public abstract class JPanelTicket extends JPanel implements JPanelView, BeanFac
     }
 
     return true;
+}*/
+  
+  private boolean hasStock(ProductInfoExt product, double quantity) {
+
+    // Productos que no manejan inventario
+    if (product == null
+            || product.isVprice()
+            || product.getID().equals("xxx999_999xxx_x9x9x9")
+            || product.getID().equals("xxx998_998xxx_x8x8x8")) {
+        return true;
+    }
+
+    try {
+
+        String location = m_App.getInventoryLocation();
+
+        ProductStock stock = dlSales.getProductStockState(
+                product.getID(),
+                location
+        );
+
+        // Si no existe registro de stock, mantenemos
+        // el comportamiento original de uniCenta.
+        if (stock == null) {
+            return true;
+        }
+
+        double available = stock.getUnits() == null
+                ? 0.0
+                : stock.getUnits();
+
+        /*
+         * Regla especial para productos de balanza:
+         * deben tener al menos 1 libra disponible.
+         */
+        if (product.isScale()) {
+
+            if (available < 1.0) {
+
+                Toolkit.getDefaultToolkit().beep();
+
+                JOptionPane.showMessageDialog(
+                        this,
+                        "El producto de balanza no tiene suficiente existencia.\n\n"
+                                + "Existencia actual: " + available
+                                + " lb\n"
+                                + "Existencia mínima requerida: 1 lb",
+                        "Existencia insuficiente",
+                        JOptionPane.WARNING_MESSAGE
+                );
+
+                return false;
+            }
+
+        } else {
+
+            // Productos normales
+            if (available <= 0) {
+
+                Toolkit.getDefaultToolkit().beep();
+
+                JOptionPane.showMessageDialog(
+                        this,
+                        "El producto no tiene existencia disponible.\n\n"
+                                + "Existencia actual: " + available,
+                        "Producto sin existencia",
+                        JOptionPane.WARNING_MESSAGE
+                );
+
+                return false;
+            }
+        }
+
+        /*
+         * En cualquier caso tampoco podemos vender
+         * más unidades/peso del que realmente existe.
+         */
+        if (quantity > available) {
+
+            Toolkit.getDefaultToolkit().beep();
+
+            JOptionPane.showMessageDialog(
+                    this,
+                    "No hay suficiente existencia.\n\n"
+                            + "Existencia disponible: " + available
+                            + "\nCantidad solicitada: " + quantity,
+                    "Existencia insuficiente",
+                    JOptionPane.WARNING_MESSAGE
+            );
+
+            return false;
+        }
+
+    } catch (BasicException ex) {
+
+        System.err.println(
+                "Error verificando existencia: "
+                        + ex.getMessage()
+        );
+
+        JOptionPane.showMessageDialog(
+                this,
+                "No fue posible verificar la existencia del producto.",
+                "Error",
+                JOptionPane.ERROR_MESSAGE
+        );
+
+        return false;
+    }
+
+    return true;
 }
 
   private void addTicketLine(ProductInfoExt oProduct, double dMul, double dPrice) {
 
 //        if (oProduct.isVprice() || oProduct.getID().equals("xxx999_999xxx_x9x9x9")){
+
+    if (!hasStock(oProduct, dMul)) {
+        stateToZero();
+        return;
+    }
+
     if (oProduct.isVprice()) {
       TaxInfo tax = taxeslogic.getTaxInfo(oProduct.getTaxCategoryID(), m_oTicket.getCustomer());
 
@@ -1745,13 +1862,7 @@ public abstract class JPanelTicket extends JPanel implements JPanelView, BeanFac
           TicketLineInfo newline = new TicketLineInfo(m_oTicket.getLine(i));
           //If it's a refund + button means one unit less
           if (m_oTicket.getTicketType() == TicketInfo.RECEIPT_REFUND) {
-            double newQuantity = newline.getMultiply() + 1.0;
-
-            if (!hasStock(newline.getProductID(), newQuantity, i)) {
-                stateToZero();
-                return;
-            }
-
+            
             if (m_App.getProperties().getProperty("override.check").equals("true")) {
               oCount = count - 1;  //increment existing line
               pinOK = false;

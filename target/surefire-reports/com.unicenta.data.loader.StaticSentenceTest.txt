@@ -1,4 +1,4 @@
 -------------------------------------------------------------------------------
 Test set: com.unicenta.data.loader.StaticSentenceTest
 -------------------------------------------------------------------------------
-Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 4.472 s -- in com.unicenta.data.loader.StaticSentenceTest
+Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 5.461 s -- in com.unicenta.data.loader.StaticSentenceTest
