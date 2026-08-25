@@ -146,6 +146,9 @@ public class AppViewConnection {
             long maxLifetime = Long.parseLong(
                     getProperty(props, "db.pool.maxLifetime", "1800000"));
             
+            long keepaliveTime = Long.parseLong(
+                    getProperty(props, "db.pool.keepaliveTime", "120000"));
+            
             HikariConnectionPool.init(
                 sDBDriver,
                 dbURL,
@@ -156,7 +159,8 @@ public class AppViewConnection {
                 minimumIdle,
                 connectionTimeout,
                 idleTimeout,
-                maxLifetime
+                maxLifetime,
+                keepaliveTime
             );
             
             return new Session(dbURL, sDBUser,sDBPassword);

@@ -23,7 +23,8 @@ public final class HikariConnectionPool {
             int minimumIdle,
             long connectionTimeout,
             long idleTimeout,
-            long maxLifetime) {
+            long maxLifetime,
+            long keepaliveTime) {
 
         // Si el pool está deshabilitado no hacemos nada
         if (!poolEnabled) {
@@ -57,12 +58,10 @@ public final class HikariConnectionPool {
         cfg.setConnectionTimeout(connectionTimeout);
         cfg.setIdleTimeout(idleTimeout);
         cfg.setMaxLifetime(maxLifetime);
+        cfg.setKeepaliveTime(keepaliveTime);
 
-        // Opcionales (puedes dejarlos comentados por ahora)
-        // cfg.setAutoCommit(true);
-        // cfg.setValidationTimeout(5000);
-        // cfg.setLeakDetectionThreshold(60000);
-        // cfg.setKeepaliveTime(120000);
+        // Validación de conexión
+        cfg.setValidationTimeout(5000);
 
         System.out.println("====================================");
         System.out.println("Inicializando HikariCP");
@@ -75,6 +74,8 @@ public final class HikariConnectionPool {
         System.out.println("Connection TO : " + connectionTimeout);
         System.out.println("Idle TO       : " + idleTimeout);
         System.out.println("Max Lifetime  : " + maxLifetime);
+        System.out.println("Keepalive     : " + keepaliveTime);
+        System.out.println("Validation TO : 5000");
         System.out.println("====================================");
 
         ds = new HikariDataSource(cfg);
@@ -83,21 +84,31 @@ public final class HikariConnectionPool {
     }
 
     public static Connection getConnection() throws SQLException {
+        if (ds == null) {
+            throw new SQLException("HikariCP no ha sido inicializado.");
+        }
+
         return ds.getConnection();
     }
 
     public static void shutdown() {
         if (ds != null) {
             ds.close();
+            ds = null;
         }
     }
-    
+
     public static void printStats() {
 
-    HikariPoolMXBean pool = ds.getHikariPoolMXBean();
+        if (ds == null) {
+            System.out.println("HikariCP no está inicializado.");
+            return;
+        }
 
-    System.out.println("Active : " + pool.getActiveConnections());
-    System.out.println("Idle   : " + pool.getIdleConnections());
-    System.out.println("Total  : " + pool.getTotalConnections());
-}
+        HikariPoolMXBean pool = ds.getHikariPoolMXBean();
+
+        System.out.println("Active : " + pool.getActiveConnections());
+        System.out.println("Idle   : " + pool.getIdleConnections());
+        System.out.println("Total  : " + pool.getTotalConnections());
+    }
 }
